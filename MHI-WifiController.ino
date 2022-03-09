@@ -71,8 +71,12 @@ int incomingPacket(int origin, int dest) {
    //This gets called at the beginning of the start bit (first 0 after a long 1)
     
    byte data[16];
-   byte by = 0;
+   byte calculated_checksum;
+   byte byte_idx = 0;
+   bool packet_modified = false;
    while (true) {
+    bool byte_modified = false;
+    
     delayMicroseconds(MID_BIT_DURATION_MICROS); // wait so the sample point is in the middle of the bit
    
     // read start bit
@@ -89,43 +93,88 @@ int incomingPacket(int origin, int dest) {
     byte r;
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 0);
+    }
     bitWrite(b, 0, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 1);
+    }
     bitWrite(b, 1, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 2);
+    }
     bitWrite(b, 2, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 3);
+    }
     bitWrite(b, 3, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 4);
+    }
     bitWrite(b, 4, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 5);
+    } else if (origin == P_CON && byte_idx == 2 ) {
+      byte_modified = true;
+      r = 1;
+    }
     bitWrite(b, 5, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 6);
+    }
     bitWrite(b, 6, r == HIGH);
     digitalWrite(dest, r);
     delayMicroseconds(BIT_DURATION_MICROS);
     r = digitalRead(origin);
+    if (byte_idx == 15) {
+      r = bitRead(calculated_checksum, 7);
+    }
     bitWrite(b, 7, r == HIGH);
     digitalWrite(dest, r);
 
-    data[by] = b;
+    if (byte_modified) {
+      packet_modified = true;
+    }
+
+    data[byte_idx] = b;
+    if (byte_idx == 14) {
+      int16_t accum = 0;
+      for (int i =0; i< 15; i++) {
+        accum += data[i];
+      }
+      calculated_checksum = (byte)accum;
+    } else if (byte_idx == 15 && !packet_modified) {
+      if (calculated_checksum != b) {
+        Serial.println("Checksum missmatch!");
+        return;
+      }
+    }
    
     // parity bit
     delayMicroseconds(BIT_DURATION_MICROS);
     byte parity = digitalRead(origin);
-    if (parity != isEvenParity(b)) {
+    if (byte_modified) {
+      parity = isEvenParity(b);
+    } else if (parity != isEvenParity(b)) {
       Serial.println("Parity bit missmatch!");
       debugByteAndParity(b, parity);
       return;
@@ -139,7 +188,7 @@ int incomingPacket(int origin, int dest) {
     }
     digitalWrite(dest, HIGH);
     
-    by++;
+    byte_idx++;
 
     //debug("End of byte");
     //Wait until the next start bit begins
@@ -150,7 +199,7 @@ int incomingPacket(int origin, int dest) {
       if (timeHighCon > LONG_SILENCE_MILIS) {
         Serial.println(waitBeginTime);
         Serial.print("Received ");
-        Serial.print(by);
+        Serial.print(byte_idx);
         Serial.print(" bytes from ");
         Serial.println(origin == P_CON? "controller" : "hvac");
         for (int i = 0; i < 16; i++){
