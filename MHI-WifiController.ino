@@ -25,7 +25,28 @@ void printByte(byte var) {
   }
 }
 
+void printRawTemperatureInDegrees(byte raw) {
+  // Celsius = (0.25 * raw) - 15
+  // We can avoid using floats, though
+  Serial.print((raw >> 2)-15);
+  switch(raw & 0b11) {
+    case 0b00:
+      Serial.print(".0");
+      break;
+    case 0b01:
+      Serial.print(".25");
+      break;
+    case 0b10:
+      Serial.print(".5");
+      break;
+    case 0b11:
+      Serial.print(".75");
+      break;
+  }
+}
+
 int parseTemperature(const byte data[]) {
+  // Range is from 1 - 16 from 00001 to 10000 with bit indices 54321
   return 14 + (data[4] >> 1) & 0b11111;
 }
 
@@ -42,6 +63,7 @@ int parseMode(const byte data[]) {
 }
 
 bool bitForTemperature(int temp, int bitNum) {
+  // Range is from 1 - 16 from 00001 to 10000 with bit indices 54321
   return bitRead(((temp - 14) << 1), bitNum);
 }
 
@@ -109,21 +131,24 @@ int incomingPacket(int origin, int dest) {
       delayMicroseconds(BIT_DURATION_MICROS);
       original_bit = digitalRead(origin);
       modified_bit = original_bit;
-      if (byte_idx == 15) {
-        modified_bit = bitRead(calculated_checksum, bit_idx);
-      } else if (myOnOff != controllerOnOff && origin == PIN_CON && byte_idx == 2 && bit_idx == 5) {
-        // On/off
-        modified_bit = myOnOff;
-      } else if (myTemperature != controllerTemperature && origin == PIN_CON && byte_idx == 4 && (bit_idx > 0 && bit_idx < 6)) {
-        // Temperature
-        // Range is from 1 - 16 from 00001 to 10000 with bit indices 54321 (this code only changes 432)
-        modified_bit = bitForTemperature(myTemperature, bit_idx);
-      } else if (myFanSpeed != controllerFanSpeed && origin == PIN_CON && byte_idx == 5 && bit_idx == 1) {
-        // Fan speed
-        modified_bit = myFanSpeed;
-      } else if (myMode != controllerMode && origin == PIN_CON && byte_idx == 2 && bit_idx < 3) {
-        // Mode
-        modified_bit = bitRead(myMode, bit_idx);
+      if (origin == PIN_CON) {
+        // Modify data sent by controller
+        if (byte_idx == 15) {
+          // Checksum
+          modified_bit = bitRead(calculated_checksum, bit_idx);
+        } else if (myOnOff != controllerOnOff && byte_idx == 2 && bit_idx == 5) {
+          // On/off
+          modified_bit = myOnOff;
+        } else if (myTemperature != controllerTemperature && byte_idx == 4 && (bit_idx > 0 && bit_idx < 6)) {
+          // Temperature
+          modified_bit = bitForTemperature(myTemperature, bit_idx);
+        } else if (myFanSpeed != controllerFanSpeed && byte_idx == 5 && bit_idx == 1) {
+          // Fan speed
+          modified_bit = myFanSpeed;
+        } else if (myMode != controllerMode && byte_idx == 2 && bit_idx < 3) {
+          // Mode
+          modified_bit = bitRead(myMode, bit_idx);
+        }
       }
       bitWrite(original_byte, bit_idx, original_bit);
       bitWrite(modified_byte, bit_idx, modified_bit);
@@ -243,7 +268,19 @@ int incomingPacket(int origin, int dest) {
             myMode = original_mode;
           }
 
+          // Not needed: when controller sensor is set to on, air reports back this same value
+          //Serial.print("Controller temp: ");
+          //Serial.println(original_data[6]);
+          //Serial.println("");
+            
+        } else { // origin == HVAC
+            Serial.print("Room temp: ");
+            Serial.print(original_data[6]);
+            Serial.print(" (");
+            printRawTemperatureInDegrees(original_data[6]);
+            Serial.println("C)");
         }
+
         // Update timeHigh
         if (origin == PIN_CON) {
           timeHighCon = millis()-waitBeginTime;
