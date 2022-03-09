@@ -6,9 +6,9 @@ MHI models from around 2004-2006 (series FDTA, FDUA, FDTCA, FDKNA, FDURA, FDENA)
 
 ## How does this work?
 
-The RC-EC1 controller and your I/U (internal AC unit) communicate by sending 16-byte-long UART packets at 1200 bauds with 1 even partiy bit through the data line that connects the two devices, roughly once per second. The flow is: the controller sends the desired state, the I/U responds with some confirmation data that I haven't fully reverse engineered, and the controller responds again with an ACK that also includes most of the same state again.
+The RC-EC1 controller and your I/U (indoor AC unit) communicate by sending 16-byte-long UART packets at 1200 bauds with 1 even partiy bit through the data line that connects the two devices, roughly once per second. The same data line is used bidirectionally. The flow is: the controller sends the desired state, ~150ms later the I/U responds with some confirmation data that I haven't fully reverse engineered, and again the controller responds with an ACK that repeats most of the state from the first packet. All packets are 16 byte long and the last one is a Sum of Bytes % 256 checksum.
 
-This program works by reading the packets from one end of the data line and writing them on the other end in real time, while optionally modifying them in transit to change the setpoint temperature, mode, fan speed or on/off status. My unit doesn't have louver nor grill options, so I didn't reverse engineer those. 
+This program works by reading the packets from one end of the data line and writing them on the other end in real time, while optionally modifying them in transit to change the setpoint temperature, mode, fan speed or on/off status. This program can't create new packets, only modify the existing ones. My unit doesn't have louver nor grill options, so I didn't reverse engineer those.
 
 There's one caveat: The wired controller won't know about the new state set by this, so it won't reflect it on the display. There is some logic in this code, though, to revert to the state set by the controller if any of it changes (ie: if you change the settings using the wired controller, they take precedence).
 
