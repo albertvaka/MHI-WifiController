@@ -4,10 +4,20 @@ const int PIN_CON = 3;
 
 const int LONG_SILENCE_MILIS = 50;
 const int BIT_DURATION_MICROS = 833; //830
-const int MID_BIT_DURATION_MICROS = 150; // time to wait between a bit start and the moment we sample it
+const int MID_BIT_DURATION_MICROS = 110; // time to wait between a bit start and the moment we sample it
 
 unsigned long timeHighCon = 0;
 unsigned long timeHighHvac = 0;
+
+bool controllerOnOff = false;
+int controllerTemperature = -1;
+int controllerFanSpeed = -1;
+int controllerMode = -1;
+
+bool myOnOff = false;
+int myTemperature = -1;
+int myFanSpeed = -1;
+int myMode = -1;
 
 void printByte(byte var) {
   for (unsigned int test = 0x80; test; test >>= 1) {
@@ -15,16 +25,32 @@ void printByte(byte var) {
   }
 }
 
-void printState(const byte data[]) {
-  bool on_off = bitRead(data[2], 5);
+int parseTemperature(const byte data[]) {
+  return 14 + (data[4] >> 1) & 0b11111;
+}
+
+bool parseOnOff(const byte data[]) {
+  return bitRead(data[2], 5);
+}
+
+int parseFanSpeed(const byte data[]) {
+  return bitRead(data[5], 1);
+}
+
+int parseMode(const byte data[]) {
+  return data[2] & 0b111;
+}
+
+bool bitForTemperature(int temp, int bitNum) {
+  return bitRead(((temp - 14) << 1), bitNum);
+}
+
+void printState(bool on_off, int temp, int fan, int mode) {
   Serial.print(on_off? "ON " : "OFF");
-  int temp = 14 + (data[4] >> 1) & 0b11111;
   Serial.print(" SetPoint: ");
   Serial.print(temp);
-  bool fan_fast = bitRead(data[5], 1);
   Serial.print(" Fan: ");
-  Serial.print(fan_fast? "FAST" : "SLOW");
-  int mode = data[2] & 0b111;
+  Serial.print(fan? "FAST" : "SLOW");
   Serial.print(" Mode: ");
   switch (mode) {
     case 0: Serial.print("AUTO"); break;
@@ -55,7 +81,8 @@ byte isEvenParity(byte val) {
 int incomingPacket(int origin, int dest) {
   //This gets called at the beginning of the start bit (first 0 after a long 1)
     
-  byte data[16];
+  byte original_data[16];
+  byte modified_data[16];
   byte calculated_checksum;
   byte byte_idx = 0;
   bool packet_modified = false;
@@ -74,45 +101,51 @@ int incomingPacket(int origin, int dest) {
     digitalWrite(dest, LOW);
     
     // data byte
-    byte b;
-    byte r;
+    byte original_byte;
+    byte modified_byte;
+    bool original_bit;
+    bool modified_bit;
     for (int bit_idx = 0; bit_idx < 8; bit_idx++) {
       delayMicroseconds(BIT_DURATION_MICROS);
-      r = digitalRead(origin);
+      original_bit = digitalRead(origin);
+      modified_bit = original_bit;
       if (byte_idx == 15) {
-        byte_modified = true;
-        r = bitRead(calculated_checksum, bit_idx);
-      } else if (origin == PIN_CON && byte_idx == 2 && bit_idx == 5) {
-        // on/off
-        //byte_modified = true;
-        //r = 1;
-      } else if (origin == PIN_CON && byte_idx == 4 && (bit_idx > 1 && bit_idx < 5)) {
-        // Temperature change
+        modified_bit = bitRead(calculated_checksum, bit_idx);
+      } else if (myOnOff != controllerOnOff && origin == PIN_CON && byte_idx == 2 && bit_idx == 5) {
+        // On/off
+        modified_bit = myOnOff;
+      } else if (myTemperature != controllerTemperature && origin == PIN_CON && byte_idx == 4 && (bit_idx > 0 && bit_idx < 6)) {
+        // Temperature
         // Range is from 1 - 16 from 00001 to 10000 with bit indices 54321 (this code only changes 432)
-        //byte_modified = true;
-        //r = 1;
-      } else if (origin == PIN_CON && byte_idx == 5 && bit_idx == 1) {
+        modified_bit = bitForTemperature(myTemperature, bit_idx);
+      } else if (myFanSpeed != controllerFanSpeed && origin == PIN_CON && byte_idx == 5 && bit_idx == 1) {
         // Fan speed
-        //byte_modified = true;
-        //r = 1;
+        modified_bit = myFanSpeed;
+      } else if (myMode != controllerMode && origin == PIN_CON && byte_idx == 2 && bit_idx < 3) {
+        // Mode
+        modified_bit = bitRead(myMode, bit_idx);
       }
-      bitWrite(b, bit_idx, r);
-      digitalWrite(dest, r);
+      bitWrite(original_byte, bit_idx, original_bit);
+      bitWrite(modified_byte, bit_idx, modified_bit);
+      digitalWrite(dest, modified_bit);
     }
     
-    if (byte_modified) {
+    if (original_byte != modified_byte) {
       packet_modified = true;
     }
     
-    data[byte_idx] = b;
+    original_data[byte_idx] = original_byte;
+    modified_data[byte_idx] = modified_byte;
+
+    // Checksum
     if (byte_idx == 14) {
       int16_t accum = 0;
       for (int i =0; i< 15; i++) {
-        accum += data[i];
+        accum += modified_data[i];
       }
       calculated_checksum = (byte)accum;
     } else if (byte_idx == 15 && !packet_modified) {
-      if (calculated_checksum != b) {
+      if (calculated_checksum != original_byte) {
         Serial.println("Checksum missmatch!");
         return;
       }
@@ -121,13 +154,13 @@ int incomingPacket(int origin, int dest) {
     // parity bit
     delayMicroseconds(BIT_DURATION_MICROS);
     byte parity = digitalRead(origin);
-    if (byte_modified) {
-      parity = isEvenParity(b);
-    } else if (parity != isEvenParity(b)) {
+    if (original_byte != modified_byte) {
+      parity = isEvenParity(modified_byte);
+    } else if (parity != isEvenParity(original_byte)) {
       Serial.print("Parity bit missmatch on byte ");
       Serial.print(byte_idx);
       Serial.print(": ");
-      printByte(b);
+      printByte(original_byte);
       Serial.write(parity? " 1" : " 0");
       Serial.println();
       return;
@@ -157,14 +190,59 @@ int incomingPacket(int origin, int dest) {
           Serial.println(origin == PIN_CON? "controller" : "hvac");
           return;
         }
-        // Print packet
         if (origin == PIN_CON) {
+          // Parse states
+          bool original_onOff = parseOnOff(original_data);
+          int original_temperature = parseTemperature(original_data);
+          int original_fanSpeed = parseFanSpeed(original_data);
+          int original_mode = parseMode(original_data);
+
+          bool modified_onOff = parseOnOff(modified_data);
+          int modified_temperature = parseTemperature(modified_data);
+          int modified_fanSpeed = parseFanSpeed(modified_data);
+          int modified_mode = parseMode(modified_data);
+          
+          // Print states
+          
+          Serial.println("Original:");
           for (int i = 0; i < 16; i++){
-            printByte(data[i]);
+            printByte(original_data[i]);
             Serial.print(" ");
           }
           Serial.println();
-          printState(data);
+          printState(original_onOff, original_temperature, original_fanSpeed, original_mode);
+
+          if (packet_modified) {
+            Serial.println("Modified:");
+            for (int i = 0; i < 16; i++){
+              printByte(original_data[i]);
+              Serial.print(" ");
+            }
+            Serial.println();
+            printState(modified_onOff, modified_temperature, modified_fanSpeed, modified_mode);
+          } else {
+            Serial.println("No changes made");
+          }
+          Serial.println("");
+
+          // Detect changes made by humans on the controller
+          if (original_onOff != controllerOnOff
+              || original_temperature != controllerTemperature
+              || original_fanSpeed != controllerFanSpeed
+              || original_mode != controllerMode
+          ) {
+            controllerOnOff = original_onOff;
+            controllerTemperature = original_temperature;
+            controllerFanSpeed = original_fanSpeed;
+            controllerMode = original_mode;
+            Serial.println("Controller change detected, resetting my state.");
+            Serial.println("");
+            myOnOff = original_onOff;
+            myTemperature = original_temperature;
+            myFanSpeed = original_fanSpeed;
+            myMode = original_mode;
+          }
+
         }
         // Update timeHigh
         if (origin == PIN_CON) {
@@ -209,6 +287,16 @@ void loop() {
   unsigned long time = millis();
   checkStartBit(time-lastTime);
   lastTime = time;
+
+  // debug button
+  static bool last_button = false;
+  pinMode(7, INPUT);
+  bool button = digitalRead(7);
+  if (button != last_button && button) {
+    Serial.println("INCREASE TEMP");
+    myTemperature++;
+  }
+  last_button  = button;
 }
 
 void setup() {
