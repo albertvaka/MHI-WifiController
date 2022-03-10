@@ -1,6 +1,6 @@
-# Mitsubishi HI RC-E1 Wifi Controller
+# Mitsubishi HI RC-E1 Controller
 
-A man-in-the-middle program for ESP32 that lets you control Mitsubishi Heavy Industries heat pumps/air conditioning systems that use the wired RC-E1 controller (3 wires).
+A man-in-the-middle program for Arduino/ESP32/ESP8266 that lets you control Mitsubishi Heavy Industries heat pumps/air conditioning systems that use the wired RC-E1 controller (3 wires).
 
 MHI models from around 2004-2006 (series FDTA, FDUA, FDTCA, FDKNA, FDURA, FDENA) should all be compatible with this controller. I only tested this with an FDURA301R, though.
 
@@ -12,8 +12,6 @@ This program works by reading the packets from one end of the data line and writ
 
 There's one caveat: The wired controller won't know about the new state set by this, so it won't reflect it on the display. There is some logic in this code, though, to revert to the state set by the controller if any of it changes (ie: if you change the settings using the wired controller, they take precedence).
 
-You can also easily remove the WiFi parts of this and use it on an Arduino. The first commits of this repo, actually, ran on an Arduino.
-
 ## What about the hardware part?
 
 Software is soft, hardware is hard.
@@ -23,3 +21,9 @@ There are three wires between your I/U machine and your RC-E1 controller. Two of
 ![526842ae757b7f1b128b456f](https://user-images.githubusercontent.com/980842/157506552-de58be20-eea5-4c4d-ab3b-f63c7d425018.png)
 
 I hope you don't break your AC while trying to hook this :D
+
+## What about the WiFi?
+
+I'm using this code together with a proprietary IoT platform that runs on ESP32 to connect the board to the internet via WiFi and control my AC from my phone, through voice assistants, etc. but I've decided not to make that part open source because I don't want to encourage the use of any specific proprietary platform
+
+It should be trivial to extend this code to integrate it with any remote or local controller of your choice. The globals you want to read/write to interact with your MHI AC are called  `myOnOff`, `myTemperature`, `myFanSpeed` and `myMode`.
