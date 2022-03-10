@@ -20,6 +20,10 @@ There are three wires between your I/U machine and your RC-E1 controller. Two of
 
 ![526842ae757b7f1b128b456f](https://user-images.githubusercontent.com/980842/157506552-de58be20-eea5-4c4d-ab3b-f63c7d425018.png)
 
+A full schematic using an ESP8622, two logic level converters and a power regulator to power the ESP8622 from the 12V power line coming from the I/U would look like this:
+
+![image](https://user-images.githubusercontent.com/980842/157637823-d24f15c6-ab5e-420b-887a-02d85990cd67.png)
+
 I hope you don't break your AC while trying to hook this :D
 
 ## What about the WiFi?
@@ -27,3 +31,4 @@ I hope you don't break your AC while trying to hook this :D
 I'm using this code together with a proprietary IoT platform that runs on ESP32 to connect the board to the internet via WiFi and control my AC from my phone, through voice assistants, etc. but I've decided not to make that part open source because I don't want to encourage the use of any specific proprietary platform
 
 It should be trivial to extend this code to integrate it with any remote or local controller of your choice. The globals you want to read/write to interact with your MHI AC are called  `myOnOff`, `myTemperature`, `myFanSpeed` and `myMode`.
+
