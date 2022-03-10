@@ -16,9 +16,7 @@ There's one caveat: The wired controller won't know about the new state set by t
 
 Software is soft, hardware is hard.
 
-There are three wires between your I/U machine and your RC-E1 controller. Two of them are power and one is data (that is used bidirectionally). You will have to identify which one is which. This expects to be connected beetween the two ends of the data wire. HOWEVER, Mitsubishi's data cables use 12V, while the ESP32 uses 3.3V and Arduino uses 5V, so you will need two bidrectional logic level converters like the following schematic between the two pins on your ESP32/Arduino and the data cables that go to your I/U and your RC-E1.
-
-![526842ae757b7f1b128b456f](https://user-images.githubusercontent.com/980842/157506552-de58be20-eea5-4c4d-ab3b-f63c7d425018.png)
+There are three wires between your I/U machine and your RC-E1 controller. Two of them are power and one is data (which is used bidirectionally). You will have to identify which one is which on your controller. This expects to be connected beetween the two ends of the data wire. HOWEVER, Mitsubishi's data cables use 12V, while the ESP32 uses 3.3V and Arduino uses 5V, so you will need two bidrectional logic level converters between the two pins on your ESP/Arduino and the data cables that go to your I/U and your RC-E1.
 
 A full schematic using an ESP8622, two logic level converters and a power regulator to power the ESP8622 from the 12V power line coming from the I/U would look like this:
 
