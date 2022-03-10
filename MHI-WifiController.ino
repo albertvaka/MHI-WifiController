@@ -1,6 +1,14 @@
 
+
+#if defined(ESP8266) ||  defined(ESP32) 
+//ESP pinout
+const int PIN_HVAC = 0;
+const int PIN_CON = 4;
+#else
+// Arduino pinout
 const int PIN_HVAC = 2;
-const int PIN_CON = 3;
+const int PIN_CON = 4;
+#endif
 
 const int LONG_SILENCE_MILIS = 50;
 const int BIT_DURATION_MICROS = 833; //830
@@ -100,7 +108,7 @@ byte isEvenParity(byte val) {
   return (countBits(val) & 1 ? 1 : 0);
 }
 
-int incomingPacket(int origin, int dest) {
+void incomingPacket(int origin, int dest) {
   //This gets called at the beginning of the start bit (first 0 after a long 1)
     
   byte original_data[16];
@@ -274,11 +282,11 @@ int incomingPacket(int origin, int dest) {
           //Serial.println("");
             
         } else { // origin == HVAC
-            Serial.print("Room temp: ");
-            Serial.print(original_data[6]);
-            Serial.print(" (");
-            printRawTemperatureInDegrees(original_data[6]);
-            Serial.println("C)");
+          Serial.print("Room temp: ");
+          Serial.print(original_data[6]);
+          Serial.print(" (");
+          printRawTemperatureInDegrees(original_data[6]);
+          Serial.println("C)");
         }
 
         // Update timeHigh
@@ -326,20 +334,18 @@ void loop() {
   lastTime = time;
 
   // debug button
-  static bool last_button = false;
-  pinMode(7, INPUT);
-  bool button = digitalRead(7);
-  if (button != last_button && button) {
-    Serial.println("INCREASE TEMP");
-    myTemperature++;
-  }
-  last_button  = button;
+  //static bool last_button = false;
+  //pinMode(7, INPUT);
+  //bool button = digitalRead(7);
+  //if (button != last_button && button) {
+  //  Serial.println("INCREASE TEMP");
+  //  myTemperature++;
+  //}
+  //last_button  = button;
 }
 
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_CON, INPUT);
-  //digitalWrite(PIN_CON, HIGH); // turn on pullup resistors
   pinMode(PIN_HVAC, INPUT);
-  //digitalWrite(PIN_HVAC, HIGH); // turn on pullup resistors
 }
