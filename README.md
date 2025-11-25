@@ -4,6 +4,8 @@ A man-in-the-middle program for Arduino/ESP32/ESP8266 that lets you control Mits
 
 MHI models from around 2004-2006 (series FDTA, FDUA, FDTCA, FDKNA, FDURA, FDENA) should all be compatible with this controller. I only tested this with an FDURA301R, though.
 
+A talk about this project can be found in YouTube: https://www.youtube.com/watch?v=HfyPsXzC8Es
+
 ## How does this work?
 
 The RC-EC1 controller and your I/U (indoor AC unit) communicate by sending 16-byte-long UART packets at 1200 bauds with 1 even partiy bit through the data line that connects the two devices, roughly once per second. The same data line is used bidirectionally. The flow is: the controller sends the desired state, ~150ms later the I/U responds with some confirmation data that I haven't fully reverse engineered, and again the controller responds with an ACK that repeats most of the state from the first packet. All packets are 16 byte long and the last one is a Sum of Bytes % 256 checksum.
